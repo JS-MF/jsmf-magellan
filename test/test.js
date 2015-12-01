@@ -44,6 +44,7 @@ s2.setTransition([t20, t21]);
 describe('allInstanceOf', function () {
     it ('get the entrypoint if it is an instance of the desired class', function (done) {
         var res = mag.allInstancesOf(State, s3);
+        res.should.have.lengthOf(1);
         res.should.containEql(s3);
         done();
     });
@@ -54,11 +55,13 @@ describe('allInstanceOf', function () {
     });
     it ('follows references', function (done) {
         var res = mag.allInstancesOf(State, t20);
+        res.should.have.lengthOf(1);
         res.should.containEql(s3);
         done();
     });
     it ('crawls the model (State example)', function (done) {
         var res = mag.allInstancesOf(State, s2);
+        res.should.have.lengthOf(4);
         res.should.containEql(s0);
         res.should.containEql(s1);
         res.should.containEql(s2);
@@ -67,6 +70,7 @@ describe('allInstanceOf', function () {
     });
     it ('crawls the model (Transition example)', function (done) {
         var res = mag.allInstancesOf(Transition, s2);
+        res.should.have.lengthOf(5);
         res.should.containEql(t0);
         res.should.containEql(t10);
         res.should.containEql(t11);
@@ -86,11 +90,13 @@ describe('allInstanceOf', function () {
 describe('getAllObjects', function () {
     it ('get the current object if it match the predicate', function (done) {
         var res = mag.getAllObjects(function (x) { return x['name'] == 'finish'; }, s3);
+        res.should.have.lengthOf(1);
         res.should.eql([s3]);
         done();
     });
     it ('crawls the model for matches', function (done) {
         var res = mag.getAllObjects(function (x) { return x['name'].indexOf('test') != -1; }, s0);
+        res.should.have.lengthOf(6);
         res.should.containEql(s1);
         res.should.containEql(s2);
         res.should.containEql(t10);
