@@ -1,0 +1,33 @@
+{
+  "name": "jsmf-magellan",
+  "version": "0.1.0",
+  "description": "Navigation module for jsmf",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "mocha --recursive"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@git.list.lu:model/jsmf-magellan.git"
+  },
+  "keywords": [
+    "Modelling",
+    "Model-Driven",
+    "Engineering",
+    "Model",
+    "Transformation",
+    "Model",
+    "Management"
+  ],
+  "author": "Nicolas Biri <nicolas.biri@list.lu> (http://www.list.lu/)",
+  "license": "MIT",
+  "dependencies": {
+    "lodash": "~3.10.1",
+  },
+  "devDependencies": {
+    "should": "~7.1.1",
+  }
+}
