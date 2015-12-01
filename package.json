@@ -25,7 +25,7 @@
   "author": "Nicolas Biri <nicolas.biri@list.lu> (http://www.list.lu/)",
   "license": "MIT",
   "dependencies": {
-    "lodash": "~3.10.1",
+    "lodash": "~3.10.1"
   },
   "devDependencies": {
     "should": "~7.1.1"
