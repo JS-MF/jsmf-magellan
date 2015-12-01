@@ -90,13 +90,13 @@ describe('getAllObjects', function () {
         done();
     });
     it ('crawls the model for matches', function (done) {
-        var res = mag.getAllObjects(function (x) { return x['name'][0].includes('test'); }, s0);
-        res.should.containsEql(s1);
-        res.should.containsEql(s2);
-        res.should.containsEql(t10);
-        res.should.containsEql(t11);
-        res.should.containsEql(t20);
-        res.should.containsEql(t21);
+        var res = mag.getAllObjects(function (x) { return x['name'].indexOf('test') != -1; }, s0);
+        res.should.containEql(s1);
+        res.should.containEql(s2);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        res.should.containEql(t20);
+        res.should.containEql(t21);
         done();
     });
 });
