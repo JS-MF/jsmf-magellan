@@ -41,7 +41,7 @@ function getObjectsFromObject (predicate, entrypoint, depth, propertyFilter) {
         return _.reduce(
             entrypoint.conformsTo().getAllReferences(),
             function (ctx0, v, ref) {
-                var newDepth = d > 0 ? d - 1 : depth;
+                var newDepth = d > 0 ? d - 1 : d;
                 if (propertyFilter(entrypoint.conformsTo(), ref)) {
                     return _.reduce(
                         entrypoint[ref],
