@@ -1,9 +1,10 @@
+"use strict";
 var should = require('should');
 var JSMF = require('jsmf');
 var mag = require ('../index.js');
 
-Class = JSMF.Class;
-Model = JSMF.Model;
+var Class = JSMF.Class;
+var Model = JSMF.Model;
 
 var FSM = new Model('FSM');
 var State = Class.newInstance('State');
@@ -116,6 +117,26 @@ describe('allInstancesFromObject', function () {
         res.should.have.lengthOf(2);
         res.should.containEql(s0);
         res.should.containEql(s1);
+        done();
+    });
+    it ('follows only some references', function(done) {
+        var A = new Class("A");
+        A.setAttribute("name", String);
+        A.setReference("toX", A, 1);
+        A.setReference("toY", A, 1);
+        var a = A.newInstance();
+        a.setName("a");
+        var x = A.newInstance();
+        x.setName("x");
+        var y = A.newInstance();
+        y.setName("y");
+        a.setToX(x);
+        a.setToX(y);
+        var f = mag.referenceMap({A: 'toX'})
+        var res = mag.allInstancesFromObject(A, a, -1, f);
+        res.should.have.lengthOf(2);
+        res.should.containEql(a);
+        res.should.containEql(x);
         done();
     });
 });
