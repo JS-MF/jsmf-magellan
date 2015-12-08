@@ -105,7 +105,19 @@ describe('allInstancesFromObject', function () {
         res.should.eql([]);
         done();
     });
-
+    it ('only find the current object if depth is 0', function (done) {
+        var res = mag.allInstancesFromObject(State, s0, 0);
+        res.should.have.lengthOf(1);
+        res.should.containEql(s0);
+        done();
+    });
+    it ('only find a subset if depth is limited', function (done) {
+        var res = mag.allInstancesFromObject(State, s0, 2);
+        res.should.have.lengthOf(2);
+        res.should.containEql(s0);
+        res.should.containEql(s1);
+        done();
+    });
 });
 
 describe('getObjectsFromObject', function () {
