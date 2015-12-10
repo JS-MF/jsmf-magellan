@@ -2,6 +2,7 @@
 var should = require('should');
 var JSMF = require('jsmf');
 var mag = require ('../index.js');
+var _ = require ('lodash');
 
 var Class = JSMF.Class;
 var Model = JSMF.Model;
@@ -57,32 +58,32 @@ sample.setReferenceModel(FSM);
 sample.setModellingElements([s0, s1, s2, s3, t0, t10, t11, t20, t21]);
 unreferencedSample.setModellingElements([s0, s1, s2, s3, t0, t10, t11, t20, t21]);
 
-describe('allInstancesFromObject', function () {
+describe('crawl with Class mag.hasClass predicate', function () {
     it ('get the entrypoint if it is an instance of the desired class', function (done) {
-        var res = mag.allInstancesFromObject(EndState, s3);
+        var res = mag.crawl({predicate: mag.hasClass(EndState)}, s3);
         res.should.have.lengthOf(1);
         res.should.containEql(s3);
         done();
     });
     it ('accept subclasses', function (done) {
-        var res = mag.allInstancesFromObject(State, s3);
+        var res = mag.crawl({predicate: mag.hasClass(State)}, s3);
         res.should.have.lengthOf(1);
         res.should.containEql(s3);
         done();
     });
     it ('finds nothing for non-corresponding isolated element', function (done) {
-        var res = mag.allInstancesFromObject(Transition, s3);
+        var res = mag.crawl({predicate: mag.hasClass(Transition)}, s3);
         res.should.eql([]);
         done();
     });
     it ('follows references', function (done) {
-        var res = mag.allInstancesFromObject(State, t20);
+        var res = mag.crawl({predicate: mag.hasClass(State)}, t20);
         res.should.have.lengthOf(1);
         res.should.containEql(s3);
         done();
     });
     it ('crawls the model (State example)', function (done) {
-        var res = mag.allInstancesFromObject(State, s2);
+        var res = mag.crawl({predicate: mag.hasClass(State)}, s2);
         res.should.have.lengthOf(4);
         res.should.containEql(s0);
         res.should.containEql(s1);
@@ -91,7 +92,7 @@ describe('allInstancesFromObject', function () {
         done();
     });
     it ('crawls the model (Transition example)', function (done) {
-        var res = mag.allInstancesFromObject(Transition, s2);
+        var res = mag.crawl({predicate: mag.hasClass(Transition)}, s2);
         res.should.have.lengthOf(5);
         res.should.containEql(t0);
         res.should.containEql(t10);
@@ -102,18 +103,18 @@ describe('allInstancesFromObject', function () {
     });
     it ('finds nothing for non-instanciated class', function (done) {
         var Dummy = Class.newInstance('Dummy');
-        var res = mag.allInstancesFromObject(Dummy, s2);
+        var res = mag.crawl({predicate: mag.hasClass(Dummy)}, s2);
         res.should.eql([]);
         done();
     });
     it ('only find the current object if depth is 0', function (done) {
-        var res = mag.allInstancesFromObject(State, s0, 0);
+        var res = mag.crawl({predicate: mag.hasClass(State), depth: 0}, s0);
         res.should.have.lengthOf(1);
         res.should.containEql(s0);
         done();
     });
     it ('only find a subset if depth is limited', function (done) {
-        var res = mag.allInstancesFromObject(State, s0, 2);
+        var res = mag.crawl({predicate: mag.hasClass(State), depth: 2}, s0);
         res.should.have.lengthOf(2);
         res.should.containEql(s0);
         res.should.containEql(s1);
@@ -133,7 +134,7 @@ describe('allInstancesFromObject', function () {
         a.setToX(x);
         a.setToX(y);
         var f = mag.referenceMap({A: 'toX'})
-        var res = mag.allInstancesFromObject(A, a, -1, f);
+        var res = mag.crawl({predicate: mag.hasClass(A), depth: -1, followIf: f}, a);
         res.should.have.lengthOf(2);
         res.should.containEql(a);
         res.should.containEql(x);
@@ -141,15 +142,15 @@ describe('allInstancesFromObject', function () {
     });
 });
 
-describe('getObjectsFromObject', function () {
-    it ('get the current object if it match the predicate', function (done) {
-        var res = mag.getObjectsFromObject(function (x) { return x['name'] == 'finish'; }, s3);
+describe('crawl', function () {
+    it ('gets the current object if it match the predicate', function (done) {
+        var res = mag.crawl({predicate: _.matches({name: 'finish'})}, s3);
         res.should.have.lengthOf(1);
         res.should.eql([s3]);
         done();
     });
     it ('crawls the model for matches', function (done) {
-        var res = mag.getObjectsFromObject(function (x) { return x['name'].indexOf('test') != -1; }, s0);
+        var res = mag.crawl({predicate: function (x) { return _.contains(x['name'], 'test'); }}, s0);
         res.should.have.lengthOf(6);
         res.should.containEql(s1);
         res.should.containEql(s2);
@@ -197,9 +198,10 @@ describe('allInstancesFromModel', function () {
         });
     });
 });
-describe('getObjectsFromModel', function () {
+
+describe('filterModelElements', function () {
     it ('crawls the model for matches', function (done) {
-        var res = mag.getObjectsFromModel(function (x) { return x['name'].indexOf('test2') != -1; }, sample);
+        var res = mag.filterModelElements(function (x) { return x['name'].indexOf('test2') != -1; }, sample);
         res.should.have.lengthOf(3);
         res.should.containEql(s2);
         res.should.containEql(t20);
@@ -208,19 +210,45 @@ describe('getObjectsFromModel', function () {
     });
 });
 
-module.exports = {
-  's0': s0,
-  's1': s1,
-  's2': s2,
-  's3': s3,
-  'State': State,
-  't0': t0,
-  't10': t10,
-  't11': t11,
-  't20': t20,
-  't21': t21,
-  'Transition': Transition,
-  'FSM': FSM,
-  'sample': sample,
-  'unreferencedSample': unreferencedSample
-}
+describe('follow', function () {
+    it('get the current object on empty path', function(done) {
+        var res = mag.follow({path: []}, s1);
+        res.should.have.lengthOf(1);
+        res.should.containEql(s1);
+        done();
+    });
+    it('get the objects at the end of a single path', function(done) {
+        var res = mag.follow({path: ['transition']}, s1);
+        res.should.have.lengthOf(2);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        done();
+    });
+    it ('get the objects at the end on complex paths', function(done) {
+        var res = mag.follow({path: ['transition', 'next', 'transition']}, s0);
+        res.should.have.lengthOf(2);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        done();
+    });
+    it ('get objects along if "targetOnly" is set to false', function(done) {
+        var res = mag.follow({path: ['transition', 'next', 'transition'], targetOnly: false}, s0);
+        res.should.have.lengthOf(5);
+        res.should.containEql(s0);
+        res.should.containEql(t0);
+        res.should.containEql(s1);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        done();
+    });
+    it ('works with all parameters sets', function(done) {
+        var res = mag.follow({path: ['transition', 'next', 'transition'],
+                              targetOnly: false,
+                              predicate: mag.hasClass(Transition)}, s0);
+        res.should.have.lengthOf(3);
+        res.should.containEql(t0);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        done();
+    });
+});

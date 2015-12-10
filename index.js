@@ -1,63 +1,55 @@
 var _ = require ('lodash');
 
 /**
- * Crawl a model instance from the given entrypoint and returns all
- * the objects from a given instance recursively.
- * @cls The Class of the objects to be retrieved.
- * @entrypoint The starting point for the search.
- * @depth The depth of the search
+ * Crawl crawls la whole JSMF model from a given entry point
+ *
+ * @param {object} searchParameters  - The definition of how the model is crawled, the following object properties are inspected:
+ *   - predicate: A predicate (a functino that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ *   - depth: the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1.
+ *   - propertyFilter: A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
+ *
+ * @param {object} entrypoint  - The entrypoint object to crawl the model.
+ *
+ * See unit tests for examples.
  */
-function allInstancesFromObject(cls, entrypoint, depth) {
-    return getObjectsFromObject(function (x) {
-            return _.contains(x.conformsTo().getInheritanceChain(), cls)
-        }, entrypoint, depth);
+function crawl(searchParameters, entrypoint) {
+    var predicate      = searchParameters['predicate'] || _.constant(true);
+    var depth          = searchParameters['depth'];
+    if (depth === undefined) { depth = -1; }
+    var propertyFilter = searchParameters['followIf'] || _.constant(true);
+    return _crawl(predicate, depth, propertyFilter, entrypoint, {'visited': [], 'result': []}).result;
+}
+
+function _crawl(predicate, depth, propertyFilter, entrypoint, ctx) {
+    if (entrypoint === undefined || _.contains(ctx.visited, entrypoint)) {
+        return ctx;
+    }
+    ctx.visited.push(entrypoint);
+    if (predicate(entrypoint)) { ctx.result.push(entrypoint); }
+    if (depth === 0) { return ctx; }
+    return _.reduce(
+        entrypoint.conformsTo().getAllReferences(),
+        function (ctx0, v, ref) {
+            var newDepth = depth > 0 ? depth - 1 : depth;
+            if (propertyFilter(entrypoint, ref)) {
+                return _.reduce(
+                    entrypoint[ref],
+                    function (ctx1, refE) {return _crawl(predicate, newDepth, propertyFilter, refE, ctx1);},
+                    ctx0
+                );
+            } else {
+                return ctx0;
+            }
+        },
+        ctx
+    );
 }
 
 /**
- * Crawl a model instance from the given entrypoint and returns all
- * the objects satisfying a given predicate recursively.
- * @predicate The predicate that must be checked by objects
- * @entrypoint The starting point for the search.
- * @depth The depth of the search
- * @propertyFilter A function that filter the properties that must be follows, the function takes two parameters:
- *      1. The current objtect
- *      2. The referenceName
- *      It returns true if the reference msut be followed, false otherwise;
+ * Get all the modelingelements from a model that belongs to a class (according to their inheritance chain)
+ * @param {Class} cls - The class we are looking for;
+ * @param {Model} model - The inspected model.
  */
-function getObjectsFromObject (predicate, entrypoint, depth, propertyFilter) {
-    propertyFilter = propertyFilter || function () {return true;};
-    depth = _.isNumber(depth) ? depth : -1;
-    var _getAllObjects = function (entrypoint, d, ctx) {
-        if (entrypoint === undefined || _.contains(ctx.visited, entrypoint)) {
-            return ctx;
-        }
-        ctx.visited.push(entrypoint);
-        if (predicate(entrypoint)) {
-            ctx.result.push(entrypoint);
-        }
-        if (d === 0) {
-            return ctx;
-        }
-        return _.reduce(
-            entrypoint.conformsTo().getAllReferences(),
-            function (ctx0, v, ref) {
-                var newDepth = d > 0 ? d - 1 : d;
-                if (propertyFilter(entrypoint.conformsTo(), ref)) {
-                    return _.reduce(
-                        entrypoint[ref],
-                        function (ctx1, refE) {return _getAllObjects(refE, newDepth, ctx1);},
-                        ctx0
-                    );
-                } else {
-                    return ctx0;
-                }
-            },
-            ctx
-        );
-    }
-    return _getAllObjects(entrypoint, depth, {'visited': [], 'result': []}).result;
-}
-
 function allInstancesFromModel (cls, model) {
     var mm = model.referenceModel;
     if (mm !== {}) {
@@ -70,9 +62,87 @@ function allInstancesFromModel (cls, model) {
     }
 }
 
-function getObjectsFromModel (predicate, model) {
-    return _.filter(_.flatten(_.values(model.modellingElements)), function (x) { return predicate(x) });
+/**
+ * Get all the modelingelements from a model that satisfies a predicate
+ * @param {Class} cls - The class we are looking for;
+ * @param {Model} model - The inspected model.
+ */
+function filterModelElements (predicate, model) {
+    return _.filter(_.flatten(_.values(model.modellingElements)),
+                    function (x) { return predicate(x) }
+    );
 }
+
+/**
+ * Get the elements down a given path from a given entrypoint of a model.
+ * @param {object} searchParameters - The parameters of the search. The following properties are inspected:
+ *  - path: The path to follow. A path is a list of reference names that must be followed. The last element can be an attribute name. If no value is given, the default value is the empty list.
+ *  - predicate: Must be fullfilled by an object to be included in the answer. If the property is undefined, all the objects are included.
+ *  - targetOnly: if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
+ */
+function follow(searchParameters, entrypoint) {
+  var path = searchParameters['path'] || [];
+  var predicate = searchParameters['predicate'] || _.constant(true);
+  var targetOnly = searchParameters['targetOnly'];
+  if (targetOnly === undefined) { targetOnly = true; }
+  return _follow(path, predicate, targetOnly, entrypoint, []);
+}
+
+function _follow(path, predicate, targetOnly, entrypoint, acc) {
+    function getValue(x) {
+        if (!(x === undefined)) {
+            if (x instanceof Function && x.length == 0) {
+                return x();
+            } else {
+                return x;
+            }
+        }
+    }
+    if (!targetOnly || _.isEmpty(path)) {
+        if (predicate(entrypoint)) { acc.push(entrypoint); }
+    }
+    if (_.isEmpty(path)) {
+        return acc;
+    }
+    var rawName = path[0];
+    var values = getValue(entrypoint[rawName]);
+    var getterName = 'get' + path[0][0].toUpperCase(); + path[0].slice(1);
+    if (values === undefined) {
+        values = getValue(entrypoint[rawName]);
+    }
+    if (values === undefined) {
+        throw "Unsuppported method " + path[0] + " for object " + entrypoint;
+    }
+    return _.reduce(
+        values,
+        function (a,y) {
+            return _follow(path.slice(1), predicate, targetOnly, y, a)
+        },
+        acc
+    );
+}
+
+/*********************
+ * Predicate helpers *
+ *********************/
+
+
+/**
+ * hasClass returns a function that checks if a given object belongs to the given JSMF Class.
+ * @param {Class} cls - The expected Class.
+ */
+function hasClass(cls) {
+  return function(x) {
+      return _.contains(x.conformsTo().getInheritanceChain(), cls)
+  };
+}
+
+
+
+/**************************
+ * PropertyFilter helpers *
+ **************************/
+
 
 /**
  * A helper for the construction of the propertyFilter for @{allInstancesFromObject} and @{getObjectsFromObject}.
@@ -81,14 +151,15 @@ function getObjectsFromModel (predicate, model) {
 function referenceMap(x) {
     return function(e, ref) {
         var hierarchy = e.conformsTo().getInheritanceChain();
-        return _.any(hierarchy, function(c) { return _.contains(x[c.__name] || [], ref.__name); });
+        return _.any(hierarchy, function(c) { return _.contains(x[c.__name], ref); });
     };
 }
 
 module.exports = {
-    allInstancesFromObject: allInstancesFromObject,
-    getObjectsFromObject: getObjectsFromObject,
+    crawl: crawl,
+    follow: follow,
     allInstancesFromModel: allInstancesFromModel,
-    getObjectsFromModel: getObjectsFromModel,
+    filterModelElements: filterModelElements,
+    hasClass: hasClass,
     referenceMap: referenceMap
 }
