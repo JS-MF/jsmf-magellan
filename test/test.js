@@ -140,6 +140,26 @@ describe('crawl with Class mag.hasClass predicate', function () {
         res.should.containEql(x);
         done();
     });
+    it ('works with a custom "followIf" Based on elements name', function(done) {
+        var res = mag.crawl({followIf: function(x) { return _.contains(['start', 'launchTest'], x.name); }}, s0);
+        res.should.have.lengthOf(3);
+        res.should.containEql(s0);
+        res.should.containEql(t0);
+        res.should.containEql(s1);
+        done();
+    });
+    it ('works with a custom "followIf" Based on elements name and reference', function(done) {
+        var res = mag.crawl({followIf: function(x, ref) {
+            return (x.name == "test1" && ref == "transition")
+               ||  (x.name == "test1Succeeds" && ref == "next");
+        }}, s1);
+        res.should.have.lengthOf(4);
+        res.should.containEql(s1);
+        res.should.containEql(t10);
+        res.should.containEql(t11);
+        res.should.containEql(s2);
+        done();
+    });
 });
 
 describe('crawl', function () {
@@ -249,6 +269,13 @@ describe('follow', function () {
         res.should.containEql(t0);
         res.should.containEql(t10);
         res.should.containEql(t11);
+        done();
+    });
+    it ('works with all parameters sets', function(done) {
+        var res = mag.follow({path: ['transition',  'next', 'transition', _.matches({name: 'test1Succeeds'}), 'next'],
+                              predicate: mag.hasClass(State)}, s0);
+        res.should.have.lengthOf(1);
+        res.should.containEql(s2);
         done();
     });
 });

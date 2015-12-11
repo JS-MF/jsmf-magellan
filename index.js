@@ -104,22 +104,32 @@ function _follow(path, predicate, targetOnly, entrypoint, acc) {
     if (_.isEmpty(path)) {
         return acc;
     }
-    var rawName = path[0];
-    var values = getValue(entrypoint[rawName]);
-    var getterName = 'get' + path[0][0].toUpperCase(); + path[0].slice(1);
-    if (values === undefined) {
-        values = getValue(entrypoint[rawName]);
-    }
-    if (values === undefined) {
-        throw "Unsuppported method " + path[0] + " for object " + entrypoint;
-    }
-    return _.reduce(
-        values,
-        function (a,y) {
-            return _follow(path.slice(1), predicate, targetOnly, y, a)
+    var pathElement = path[0];
+    if (typeof(pathElement) === 'string') {
+        var values = getValue(entrypoint[pathElement]);
+        var getterName = 'get' + pathElement[0].toUpperCase(); + pathElement.slice(1);
+        if (values === undefined) {
+            values = getValue(entrypoint[getterName]);
+        }
+        if (values === undefined) {
+            throw "Unsuppported method " + pathElement + " for object " + entrypoint;
+        }
+        return _.reduce(
+            values,
+            function (a,y) {
+                return _follow(path.slice(1), predicate, targetOnly, y, a);
         },
         acc
-    );
+        );
+    } else if (pathElement instanceof Function) {
+        if (pathElement(entrypoint)) {
+            return _follow(path.slice(1), predicate, targetOnly, entrypoint, acc);
+        } else {
+            return acc;
+        }
+    } else {
+        throw "invalid path element " + pathElement;
+    }
 }
 
 /*********************
