@@ -4,9 +4,12 @@ var _ = require ('lodash');
  * Crawl crawls la whole JSMF model from a given entry point
  *
  * @param {object} searchParameters  - The definition of how the model is crawled, the following object properties are inspected:
- *   - predicate: A predicate (a functino that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ *   - predicate: A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
  *   - depth: the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1.
- *   - propertyFilter: A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
+ *   - followIf: A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
+ *   - searchMethod: The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
+ *   - continueWhenFound: Set if we continue to crawl the model from this node when the expected predicate is found (default: true).
+ *   - includeRoot: inc, searchMethod.DFS_OnePerBranch]lude the entrypoint in the result (default: True).
  *
  * @param {object} entrypoint  - The entrypoint object to crawl the model.
  *
@@ -17,32 +20,65 @@ function crawl(searchParameters, entrypoint) {
     var depth          = searchParameters['depth'];
     if (depth === undefined) { depth = -1; }
     var propertyFilter = searchParameters['followIf'] || _.constant(true);
-    return _crawl(predicate, depth, propertyFilter, entrypoint, {'visited': [], 'result': []}).result;
+    var method = searchParameters['searchMethod'] || searchMethod.DFS_All;
+    var includeRoot = searchParameters['includeRoot'];
+    if (includeRoot === undefined) { includeRoot = true; }
+    var continueWhenFound = searchParameters['continueWhenFound'];
+    if (continueWhenFound === undefined) { continueWhenFound = true; }
+    var startingNodes = includeRoot ? [searchEntry(entrypoint, depth)]
+                                    : _.map(nodeChildren(propertyFilter, entrypoint),
+                                            function(x) {return searchEntry(x, nextDepth(depth));});
+    var startContext = {visited: [], result: []};
+    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes, startContext).result;
 }
 
-function _crawl(predicate, depth, propertyFilter, entrypoint, ctx) {
-    if (entrypoint === undefined || _.contains(ctx.visited, entrypoint)) {
-        return ctx;
-    }
-    ctx.visited.push(entrypoint);
-    if (predicate(entrypoint)) { ctx.result.push(entrypoint); }
-    if (depth === 0) { return ctx; }
-    return _.reduce(
-        entrypoint.conformsTo().getAllReferences(),
-        function (ctx0, v, ref) {
-            var newDepth = depth > 0 ? depth - 1 : depth;
-            if (propertyFilter(entrypoint, ref)) {
-                return _.reduce(
-                    entrypoint[ref],
-                    function (ctx1, refE) {return _crawl(predicate, newDepth, propertyFilter, refE, ctx1);},
-                    ctx0
-                );
-            } else {
-                return ctx0;
+function nextDepth(depth) {
+  return depth > 0 ? depth - 1 : depth;
+}
+
+function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints, ctx) {
+    while (!(_.isEmpty(entrypoints))) {
+        var entrypoint = entrypoints[0].elem;
+        var depth = entrypoints[0].depth;
+        var children = [];
+        var found = false;
+        if (entrypoint !== undefined && !(_.contains(ctx.visited, entrypoint))) {
+            ctx.visited.push(entrypoint);
+            found = predicate(entrypoint);
+            if (found) {
+                ctx.result.push(entrypoint);
+                if (stopOnFirst(method)) {
+                    return ctx;
+                }
             }
-        },
-        ctx
-    );
+            if (depth !== 0 && (!found || continueWhenFound)) {
+                children = nodeChildren(propertyFilter, entrypoint)
+            }
+            var newDepth = nextDepth(depth)
+            children = _.map(children, function(x) {return searchEntry(x, newDepth);} );
+        }
+        if (isDFS(method)) {
+            entrypoints = children.concat(entrypoints.slice(1));
+        } else {
+            entrypoints = entrypoints.slice(1).concat(children);
+        }
+    }
+    return ctx;
+}
+
+function nodeChildren(filter, entrypoint) {
+    var refs = entrypoint.conformsTo().getAllReferences();
+    return _.flatten(_.map(refs, function(v, ref) {
+        if (filter(entrypoint, ref)) {
+            return entrypoint[ref];
+        } else {
+            return [];
+        }
+    }));
+}
+
+function searchEntry(e, d) {
+    return {elem: e, depth: d};
 }
 
 /**
@@ -88,16 +124,17 @@ function follow(searchParameters, entrypoint) {
   return _follow(path, predicate, targetOnly, entrypoint, []);
 }
 
-function _follow(path, predicate, targetOnly, entrypoint, acc) {
-    function getValue(x) {
-        if (!(x === undefined)) {
-            if (x instanceof Function && x.length == 0) {
-                return x();
-            } else {
-                return x;
-            }
+function getValue(x) {
+    if (!(x === undefined)) {
+        if (x instanceof Function && x.length == 0) {
+            return x();
+        } else {
+            return x;
         }
     }
+}
+
+function _follow(path, predicate, targetOnly, entrypoint, acc) {
     if (!targetOnly || _.isEmpty(path)) {
         if (predicate(entrypoint)) { acc.push(entrypoint); }
     }
@@ -165,11 +202,38 @@ function referenceMap(x) {
     };
 }
 
+/******************
+ * Search Methods *
+ ******************/
+
+/**
+ * The searchMethods are the following:
+ * - DFS_All: Deep First Search, get all the elements that match the predicate.
+ * - BFS_All: Breadth First Search, get all the elements that match the predicate.
+ * - DFS_First: Deep First Search, get the first element that matches the predicate.
+ * - BFS_First: Breadth First Search, get the first element that matches the predicate.
+ */
+var searchMethod = {
+  DFS_All: function () {},
+  BFS_All: function () {},
+  DFS_First: function () {},
+  BFS_First: function () {},
+}
+
+function isDFS(m) {
+    return _.contains([searchMethod.DFS_All, searchMethod.DFS_First], m);
+}
+
+function stopOnFirst(m) {
+    return _.contains([searchMethod.DFS_First, searchMethod.BFS_First], m);
+}
+
 module.exports = {
     crawl: crawl,
     follow: follow,
     allInstancesFromModel: allInstancesFromModel,
     filterModelElements: filterModelElements,
+    searchMethod: searchMethod,
     hasClass: hasClass,
     referenceMap: referenceMap
 }

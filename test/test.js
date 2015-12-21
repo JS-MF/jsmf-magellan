@@ -148,6 +148,20 @@ describe('crawl with Class mag.hasClass predicate', function () {
         res.should.containEql(s1);
         done();
     });
+    it ('works with an excluded root', function(done) {
+        var res = mag.crawl({predicate: mag.hasClass(State), includeRoot: false, depth: 2}, s0);
+        res.should.have.lengthOf(1);
+        res.should.not.containEql(s0);
+        res.should.containEql(s1);
+        done();
+    });
+    it ('works with "continueWhenFound" sets to false', function(done) {
+        var res = mag.crawl({predicate: mag.hasClass(State), includeRoot: false, continueWhenFound: false}, s0);
+        res.should.have.lengthOf(1);
+        res.should.not.containEql(s0);
+        res.should.containEql(s1);
+        done();
+    });
     it ('works with a custom "followIf" Based on elements name and reference', function(done) {
         var res = mag.crawl({followIf: function(x, ref) {
             return (x.name == "test1" && ref == "transition")
