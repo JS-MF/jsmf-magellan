@@ -58,7 +58,7 @@ sample.setReferenceModel(FSM);
 sample.setModellingElements([s0, s1, s2, s3, t0, t10, t11, t20, t21]);
 unreferencedSample.setModellingElements([s0, s1, s2, s3, t0, t10, t11, t20, t21]);
 
-describe('crawl with Class mag.hasClass predicate', function () {
+describe('crawl', function () {
     it ('get the entrypoint if it is an instance of the desired class', function (done) {
         var res = mag.crawl({predicate: mag.hasClass(EndState)}, s3);
         res.should.have.lengthOf(1);
@@ -285,11 +285,18 @@ describe('follow', function () {
         res.should.containEql(t11);
         done();
     });
-    it ('works with all parameters sets', function(done) {
+    it ('works with path and predicate', function(done) {
         var res = mag.follow({path: ['transition',  'next', 'transition', _.matches({name: 'test1Succeeds'}), 'next'],
                               predicate: mag.hasClass(State)}, s0);
         res.should.have.lengthOf(1);
         res.should.containEql(s2);
+        done();
+    });
+    it ('works with path, predicate and searchMethod that stop on first', function(done) {
+        var res = mag.follow({path: ['transition',  'next', 'transition'],
+                              searchMethod: DFS_First,
+                              predicate: function(x) {return _.contains(x.name, "test1");}} , s0);
+        res.should.have.lengthOf(1);
         done();
     });
 });

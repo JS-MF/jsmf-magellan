@@ -16,8 +16,8 @@ var _ = require ('lodash');
  * See unit tests for examples.
  */
 function crawl(searchParameters, entrypoint) {
-    var predicate      = searchParameters['predicate'] || _.constant(true);
-    var depth          = searchParameters['depth'];
+    var predicate = searchParameters['predicate'] || _.constant(true);
+    var depth = searchParameters['depth'];
     if (depth === undefined) { depth = -1; }
     var propertyFilter = searchParameters['followIf'] || _.constant(true);
     var method = searchParameters['searchMethod'] || searchMethod.DFS_All;
@@ -25,21 +25,22 @@ function crawl(searchParameters, entrypoint) {
     if (includeRoot === undefined) { includeRoot = true; }
     var continueWhenFound = searchParameters['continueWhenFound'];
     if (continueWhenFound === undefined) { continueWhenFound = true; }
-    var startingNodes = includeRoot ? [searchEntry(entrypoint, depth)]
+    var startingNodes = includeRoot ? [crawlEntry(entrypoint, depth)]
                                     : _.map(nodeChildren(propertyFilter, entrypoint),
-                                            function(x) {return searchEntry(x, nextDepth(depth));});
-    var startContext = {visited: [], result: []};
-    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes, startContext).result;
+                                            function(x) {return crawlEntry(x, nextDepth(depth));});
+    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes).result;
 }
 
 function nextDepth(depth) {
   return depth > 0 ? depth - 1 : depth;
 }
 
-function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints, ctx) {
+function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints) {
+    ctx = {visited: [], result: []};
     while (!(_.isEmpty(entrypoints))) {
-        var entrypoint = entrypoints[0].elem;
-        var depth = entrypoints[0].depth;
+        var current = entrypoints.pop();
+        var entrypoint = current.elem;
+        var depth = current.depth;
         var children = [];
         var found = false;
         if (entrypoint !== undefined && !(_.contains(ctx.visited, entrypoint))) {
@@ -55,12 +56,12 @@ function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoint
                 children = nodeChildren(propertyFilter, entrypoint)
             }
             var newDepth = nextDepth(depth)
-            children = _.map(children, function(x) {return searchEntry(x, newDepth);} );
+            children = _.map(children, function(x) {return crawlEntry(x, newDepth);} );
         }
         if (isDFS(method)) {
-            entrypoints = children.concat(entrypoints.slice(1));
+            entrypoints = entrypoints.concat(children);
         } else {
-            entrypoints = entrypoints.slice(1).concat(children);
+            entrypoints = children.concat(entrypoints);
         }
     }
     return ctx;
@@ -77,7 +78,7 @@ function nodeChildren(filter, entrypoint) {
     }));
 }
 
-function searchEntry(e, d) {
+function crawlEntry(e, d) {
     return {elem: e, depth: d};
 }
 
@@ -115,13 +116,17 @@ function filterModelElements (predicate, model) {
  *  - path: The path to follow. A path is a list of reference names that must be followed. The last element can be an attribute name. If no value is given, the default value is the empty list.
  *  - predicate: Must be fullfilled by an object to be included in the answer. If the property is undefined, all the objects are included.
  *  - targetOnly: if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
+ *  - searchMethod: The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
  */
 function follow(searchParameters, entrypoint) {
-  var path = searchParameters['path'] || [];
-  var predicate = searchParameters['predicate'] || _.constant(true);
-  var targetOnly = searchParameters['targetOnly'];
-  if (targetOnly === undefined) { targetOnly = true; }
-  return _follow(path, predicate, targetOnly, entrypoint, []);
+    var path = searchParameters['path'] || [];
+    path.reverse();
+    var predicate = searchParameters['predicate'] || _.constant(true);
+    var targetOnly = searchParameters['targetOnly'];
+    if (targetOnly === undefined) { targetOnly = true; }
+    var method = searchParameters['searchMethod'] || searchMethod.DFS_All;
+    entrypoints = [followEntry(entrypoint, path)];
+    return _follow(predicate, method, targetOnly, entrypoints);
 }
 
 function getValue(x) {
@@ -134,39 +139,47 @@ function getValue(x) {
     }
 }
 
-function _follow(path, predicate, targetOnly, entrypoint, acc) {
-    if (!targetOnly || _.isEmpty(path)) {
-        if (predicate(entrypoint)) { acc.push(entrypoint); }
-    }
-    if (_.isEmpty(path)) {
-        return acc;
-    }
-    var pathElement = path[0];
-    if (typeof(pathElement) === 'string') {
-        var values = getValue(entrypoint[pathElement]);
-        var getterName = 'get' + pathElement[0].toUpperCase(); + pathElement.slice(1);
-        if (values === undefined) {
-            values = getValue(entrypoint[getterName]);
+function followEntry(e, p) {
+    return {elem: e, path: p};
+}
+
+function _follow(predicate, method, targetOnly, entrypoints) {
+    var acc = [];
+    while (!(_.isEmpty(entrypoints))) {
+        var current = entrypoints.pop();
+        var entrypoint = current.elem;
+        var path = current.path;
+        if ((!targetOnly || _.isEmpty(path)) && predicate(entrypoint)) {
+            acc.push(entrypoint);
+            if (stopOnFirst(method)) { return acc; }
         }
-        if (values === undefined) {
-            throw "Unsuppported method " + pathElement + " for object " + entrypoint;
+        if (!(_.isEmpty(path))) {
+            var pathElement = path.pop();
+            if (typeof(pathElement) === 'string') {
+                var values = getValue(entrypoint[pathElement]);
+                var getterName = 'get' + pathElement[0].toUpperCase();
+                if (values === undefined) {
+                    values = getValue(entrypoint[getterName]);
+                }
+                if (values === undefined) {
+                    throw "Unsuppported method " + pathElement + " for object " + entrypoint;
+                }
+                values = _.map(values, function(x) {return followEntry(x, path);});
+                if (isDFS(method)) {
+                    entrypoints = entrypoints.concat(values);
+                } else {
+                    entrypoints = values.concat(entrypoints);
+                }
+            } else if (pathElement instanceof Function) {
+                if (pathElement(entrypoint)) {
+                    entrypoints.push(followEntry(entrypoint, path));
+                }
+            } else {
+                throw "invalid path element " + pathElement;
+            }
         }
-        return _.reduce(
-            values,
-            function (a,y) {
-                return _follow(path.slice(1), predicate, targetOnly, y, a);
-        },
-        acc
-        );
-    } else if (pathElement instanceof Function) {
-        if (pathElement(entrypoint)) {
-            return _follow(path.slice(1), predicate, targetOnly, entrypoint, acc);
-        } else {
-            return acc;
-        }
-    } else {
-        throw "invalid path element " + pathElement;
     }
+    return acc;
 }
 
 /*********************
@@ -207,25 +220,31 @@ function referenceMap(x) {
  ******************/
 
 /**
- * The searchMethods are the following:
  * - DFS_All: Deep First Search, get all the elements that match the predicate.
- * - BFS_All: Breadth First Search, get all the elements that match the predicate.
- * - DFS_First: Deep First Search, get the first element that matches the predicate.
- * - BFS_First: Breadth First Search, get the first element that matches the predicate.
  */
-var searchMethod = {
-  DFS_All: function () {},
-  BFS_All: function () {},
-  DFS_First: function () {},
-  BFS_First: function () {},
-}
+function DFS_All() {}
+
+/**
+ * BFS_All: Breadth First Search, get all the elements that match the predicate.
+ */
+function BFS_All() {}
+
+/**
+ * DFS_First: Deep First Search, get the first element that matches the predicate.
+ */
+function DFS_First() {}
+
+/**
+ * BFS_First: Breadth First Search, get the first element that matches the predicate.
+ */
+function BFS_First() {}
 
 function isDFS(m) {
-    return _.contains([searchMethod.DFS_All, searchMethod.DFS_First], m);
+    return _.contains([DFS_All, DFS_First], m);
 }
 
 function stopOnFirst(m) {
-    return _.contains([searchMethod.DFS_First, searchMethod.BFS_First], m);
+    return _.contains([DFS_First, BFS_First], m);
 }
 
 module.exports = {
@@ -233,7 +252,10 @@ module.exports = {
     follow: follow,
     allInstancesFromModel: allInstancesFromModel,
     filterModelElements: filterModelElements,
-    searchMethod: searchMethod,
+    DFS_All: DFS_All,
+    DFS_First: DFS_First,
+    BFS_All: BFS_All,
+    BFS_First: BFS_First,
     hasClass: hasClass,
     referenceMap: referenceMap
 }
