@@ -294,7 +294,7 @@ describe('follow', function () {
     });
     it ('works with path, predicate and searchMethod that stop on first', function(done) {
         var res = mag.follow({path: ['transition',  'next', 'transition'],
-                              searchMethod: DFS_First,
+                              searchMethod: mag.DFS_First,
                               predicate: function(x) {return _.contains(x.name, "test1");}} , s0);
         res.should.have.lengthOf(1);
         done();

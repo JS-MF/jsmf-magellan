@@ -20,7 +20,7 @@ function crawl(searchParameters, entrypoint) {
     var depth = searchParameters['depth'];
     if (depth === undefined) { depth = -1; }
     var propertyFilter = searchParameters['followIf'] || _.constant(true);
-    var method = searchParameters['searchMethod'] || searchMethod.DFS_All;
+    var method = searchParameters['searchMethod'] || DFS_All;
     var includeRoot = searchParameters['includeRoot'];
     if (includeRoot === undefined) { includeRoot = true; }
     var continueWhenFound = searchParameters['continueWhenFound'];
@@ -88,14 +88,20 @@ function crawlEntry(e, d) {
  * @param {Model} model - The inspected model.
  */
 function allInstancesFromModel (cls, model) {
-    var mm = model.referenceModel;
-    if (mm !== {}) {
+    var me = _.get(model, ['referenceModel', 'modellingElements']);
+    if (_.isEmpty(me)) {
         var os = _.flatten(_.values(model.modellingElements));
-        return _.filter(os, function (x) { return _.contains(x.conformsTo().getInheritanceChain(), cls)});
+        return _.filter(os, function (x) {
+            return _.contains(x.conformsTo().getInheritanceChain(), cls)
+        });
     } else {
-        var clss = _.flatten(_.values(mm.modellingElements));
-        var subOfCls = _.map(_.filter(os, function (x) { return _.contains(x.getInheritanceChain(), cls)}), '__name');
-        return _.flatten(_.filter(subOfCls, function (v, k) {return _.contains(subOfCls, k)}));
+        var clss = _.flatten(_.values(me));
+        var subOfCls = _.map(
+            _.filter(clss, function(x) {
+                return _.contains(x.getInheritanceChain(), cls)
+            }),
+            '__name');
+        return _.flatten(_.map(subOfCls, function(x) {return model.modellingElements[x]}));
     }
 }
 
@@ -124,7 +130,7 @@ function follow(searchParameters, entrypoint) {
     var predicate = searchParameters['predicate'] || _.constant(true);
     var targetOnly = searchParameters['targetOnly'];
     if (targetOnly === undefined) { targetOnly = true; }
-    var method = searchParameters['searchMethod'] || searchMethod.DFS_All;
+    var method = searchParameters['searchMethod'] || DFS_All;
     entrypoints = [followEntry(entrypoint, path)];
     return _follow(predicate, method, targetOnly, entrypoints);
 }
