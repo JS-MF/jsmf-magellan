@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@git.list.lu:model/jsmf-magellan.git"
+    "url": "git@git.list.lu:jsmf/jsmf-magellan.git"
   },
   "keywords": [
     "Modelling",
