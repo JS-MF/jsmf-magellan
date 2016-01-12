@@ -86,22 +86,32 @@ function crawlEntry(e, d) {
  * Get all the modelingelements from a model that belongs to a class (according to their inheritance chain)
  * @param {Class} cls - The class we are looking for;
  * @param {Model} model - The inspected model.
+ * @param {Boolean} strict - If strict is false, seek for instances of the clas or of any of its subclass. Otherwise, seek only exact instances of the class (default: false).
  */
-function allInstancesFromModel (cls, model) {
+function allInstancesFromModel (cls, model, strict) {
     var me = _.get(model, ['referenceModel', 'modellingElements']);
     if (_.isEmpty(me)) {
         var os = _.flatten(_.values(model.modellingElements));
-        return _.filter(os, function (x) {
-            return _.contains(x.conformsTo().getInheritanceChain(), cls)
-        });
-    } else {
+        if (!strict)  {
+            return _.filter(os, function (x) {
+                return _.contains(x.conformsTo().getInheritanceChain(), cls)
+            });
+        } else {
+                return x.conformsTo().__name === cls.__name;
+        }
+    } else if (!strict) {
         var clss = _.flatten(_.values(me));
         var subOfCls = _.map(
             _.filter(clss, function(x) {
-                return _.contains(x.getInheritanceChain(), cls)
+                return _.contains(x.getInheritanceChain(), cls);
             }),
             '__name');
-        return _.flatten(_.map(subOfCls, function(x) {return model.modellingElements[x]}));
+        return _.flatten(_.map(
+              subOfCls,
+              function(x) {return model.modellingElements[x]})
+        );
+    } else {
+        return me[cls.__name] ;
     }
 }
 

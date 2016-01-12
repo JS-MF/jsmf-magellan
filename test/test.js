@@ -1,8 +1,8 @@
 "use strict";
 var should = require('should');
-var JSMF = require('jsmf');
-var mag = require ('../index.js');
 var _ = require ('lodash');
+var JSMF = require('jsmf-core');
+var mag = require ('../index');
 
 var Class = JSMF.Class;
 var Model = JSMF.Model;
