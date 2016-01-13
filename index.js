@@ -103,12 +103,13 @@ function allInstancesFromModel (cls, model, strict) {
         var clss = _.flatten(_.values(me));
         var subOfCls = _.map(
             _.filter(clss, function(x) {
-                return _.contains(x.getInheritanceChain(), cls);
+                return (x.getInheritanceChain !== undefined)
+                  && _.contains(x.getInheritanceChain(), cls);
             }),
             '__name');
         return _.flatten(_.map(
               subOfCls,
-              function(x) {return model.modellingElements[x]})
+              function(x) {return model.modellingElements[x] || [];})
         );
     } else {
         return me[cls.__name] ;
