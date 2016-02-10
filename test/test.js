@@ -132,7 +132,7 @@ describe('crawl', function () {
         var y = A.newInstance();
         y.setName("y");
         a.setToX(x);
-        a.setToX(y);
+        a.setToY(y);
         var f = mag.referenceMap({A: 'toX'})
         var res = mag.crawl({predicate: mag.hasClass(A), depth: -1, followIf: f}, a);
         res.should.have.lengthOf(2);
