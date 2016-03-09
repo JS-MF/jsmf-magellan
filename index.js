@@ -43,7 +43,7 @@ function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoint
         var depth = current.depth;
         var children = [];
         var found = false;
-        if (entrypoint !== undefined && !(_.contains(ctx.visited, entrypoint))) {
+        if (entrypoint !== undefined && !(_.includes(ctx.visited, entrypoint))) {
             ctx.visited.push(entrypoint);
             found = predicate(entrypoint);
             if (found) {
@@ -94,7 +94,7 @@ function allInstancesFromModel (cls, model, strict) {
         var os = _.flatten(_.values(model.modellingElements));
         if (!strict)  {
             return _.filter(os, function (x) {
-                return _.contains(x.conformsTo().getInheritanceChain(), cls)
+                return _.includes(x.conformsTo().getInheritanceChain(), cls)
             });
         } else {
                 return x.conformsTo().__name === cls.__name;
@@ -104,7 +104,7 @@ function allInstancesFromModel (cls, model, strict) {
         var subOfCls = _.map(
             _.filter(clss, function(x) {
                 return (x.getInheritanceChain !== undefined)
-                  && _.contains(x.getInheritanceChain(), cls);
+                  && _.includes(x.getInheritanceChain(), cls);
             }),
             '__name');
         return _.flatten(_.map(
@@ -210,7 +210,7 @@ function _follow(predicate, method, targetOnly, entrypoints) {
  */
 function hasClass(cls) {
   return function(x) {
-      return _.contains(x.conformsTo().getInheritanceChain(), cls)
+      return _.includes(x.conformsTo().getInheritanceChain(), cls)
   };
 }
 
@@ -228,7 +228,7 @@ function hasClass(cls) {
 function referenceMap(x) {
     return function(e, ref) {
         var hierarchy = e.conformsTo().getInheritanceChain();
-        return _.any(hierarchy, function(c) { return _.contains(x[c.__name], ref); });
+        return _.some(hierarchy, function(c) { return _.includes(x[c.__name], ref); });
     };
 }
 
@@ -257,11 +257,11 @@ function DFS_First() {}
 function BFS_First() {}
 
 function isDFS(m) {
-    return _.contains([DFS_All, DFS_First], m);
+    return _.includes([DFS_All, DFS_First], m);
 }
 
 function stopOnFirst(m) {
-    return _.contains([DFS_First, BFS_First], m);
+    return _.includes([DFS_First, BFS_First], m);
 }
 
 module.exports = {

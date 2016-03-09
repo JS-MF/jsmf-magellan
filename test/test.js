@@ -152,7 +152,7 @@ describe('crawl', function () {
     });
     it ('works with a custom "followIf" Based on elements name', function(done) {
         // Find all elements that can be reached from `s0` following only nodes that has a name containing 'start' or 'launchTest'
-        var res = mag.crawl({followIf: function(x) { return _.contains(['start', 'launchTest'], x.name); }}, s0);
+        var res = mag.crawl({followIf: function(x) { return _.includes(['start', 'launchTest'], x.name); }}, s0);
         res.should.have.lengthOf(3);
         res.should.containEql(s0);
         res.should.containEql(t0);
@@ -194,7 +194,7 @@ describe('crawl', function () {
         done();
     });
     it ('crawls the model for matches', function (done) {
-        var res = mag.crawl({predicate: function (x) { return _.contains(x['name'], 'test'); }}, s0);
+        var res = mag.crawl({predicate: function (x) { return _.includes(x['name'], 'test'); }}, s0);
         res.should.have.lengthOf(6);
         res.should.containEql(s1);
         res.should.containEql(s2);
@@ -301,7 +301,7 @@ describe('follow', function () {
     it ('works with path, predicate and searchMethod that stop on first', function(done) {
         var res = mag.follow({path: ['transition',  'next', 'transition'],
                               searchMethod: mag.DFS_First,
-                              predicate: function(x) {return _.contains(x.name, "test1");}} , s0);
+                              predicate: function(x) {return _.includes(x.name, "test1");}} , s0);
         res.should.have.lengthOf(1);
         done();
     });
