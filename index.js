@@ -157,7 +157,7 @@ function getValue(x) {
 }
 
 function followEntry(e, p) {
-    return {elem: e, path: p};
+    return {elem: e, path: p.slice()};
 }
 
 function _follow(predicate, method, targetOnly, entrypoints) {
@@ -174,9 +174,8 @@ function _follow(predicate, method, targetOnly, entrypoints) {
             var pathElement = path.pop();
             if (typeof(pathElement) === 'string') {
                 var values = getValue(entrypoint[pathElement]);
-                var getterName = 'get' + pathElement[0].toUpperCase();
                 if (values === undefined) {
-                    values = getValue(entrypoint[getterName]);
+                    values = getValue(entrypoint[pathElement[0]]);
                 }
                 if (values === undefined) {
                     throw "Unsuppported method " + pathElement + " for object " + entrypoint;
