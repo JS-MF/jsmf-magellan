@@ -38,15 +38,15 @@ function nextDepth(depth) {
 }
 
 function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints) {
-    const ctx = {visited: [], result: []}
+    const ctx = {visited: new Set(), result: []}
     while (!(_.isEmpty(entrypoints))) {
         const current = entrypoints.pop()
         const entrypoint = current.elem
         const depth = current.depth
         let children = []
         let found = false
-        if (entrypoint !== undefined && !(_.includes(ctx.visited, entrypoint))) {
-            ctx.visited.push(entrypoint)
+        if (entrypoint !== undefined && !ctx.visited.has(entrypoint)) {
+            ctx.visited.add(entrypoint)
             found = predicate(entrypoint)
             if (found) {
                 ctx.result.push(entrypoint)
