@@ -1,4 +1,6 @@
-var _ = require ('lodash');
+'use strict'
+
+const _ = require ('lodash')
 
 /**
  * Crawl crawls la whole JSMF model from a given entry point
@@ -16,115 +18,102 @@ var _ = require ('lodash');
  * See unit tests for examples.
  */
 function crawl(searchParameters, entrypoint) {
-    var predicate = searchParameters['predicate'] || _.constant(true);
-    var depth = searchParameters['depth'];
-    if (depth === undefined) { depth = -1; }
-    var propertyFilter = searchParameters['followIf'] || _.constant(true);
-    var method = searchParameters['searchMethod'] || DFS_All;
-    var includeRoot = searchParameters['includeRoot'];
-    if (includeRoot === undefined) { includeRoot = true; }
-    var continueWhenFound = searchParameters['continueWhenFound'];
-    if (continueWhenFound === undefined) { continueWhenFound = true; }
-    var startingNodes = includeRoot ? [crawlEntry(entrypoint, depth)]
+    const predicate = searchParameters['predicate'] || _.constant(true)
+    let depth = searchParameters['depth']
+    if (depth === undefined) { depth = -1 }
+    const propertyFilter = searchParameters['followIf'] || _.constant(true)
+    const method = searchParameters['searchMethod'] || DFS_All
+    let includeRoot = searchParameters['includeRoot']
+    if (includeRoot === undefined) { includeRoot = true }
+    let continueWhenFound = searchParameters['continueWhenFound']
+    if (continueWhenFound === undefined) { continueWhenFound = true }
+    const startingNodes = includeRoot ? [crawlEntry(entrypoint, depth)]
                                     : _.map(nodeChildren(propertyFilter, entrypoint),
-                                            function(x) {return crawlEntry(x, nextDepth(depth));});
-    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes).result;
+                                            x => crawlEntry(x, nextDepth(depth)))
+    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes).result
 }
 
 function nextDepth(depth) {
-  return depth > 0 ? depth - 1 : depth;
+  return depth > 0 ? depth - 1 : depth
 }
 
 function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints) {
-    ctx = {visited: [], result: []};
+    const ctx = {visited: new Set(), result: []}
     while (!(_.isEmpty(entrypoints))) {
-        var current = entrypoints.pop();
-        var entrypoint = current.elem;
-        var depth = current.depth;
-        var children = [];
-        var found = false;
-        if (entrypoint !== undefined && !(_.includes(ctx.visited, entrypoint))) {
-            ctx.visited.push(entrypoint);
-            found = predicate(entrypoint);
+        const current = entrypoints.pop()
+        const entrypoint = current.elem
+        const depth = current.depth
+        let children = []
+        let found = false
+        if (entrypoint !== undefined && !ctx.visited.has(entrypoint)) {
+            ctx.visited.add(entrypoint)
+            found = predicate(entrypoint)
             if (found) {
-                ctx.result.push(entrypoint);
-                if (stopOnFirst(method)) {
-                    return ctx;
-                }
+                ctx.result.push(entrypoint)
+                if (stopOnFirst(method)) { return ctx }
             }
             if (depth !== 0 && (!found || continueWhenFound)) {
                 children = nodeChildren(propertyFilter, entrypoint)
             }
-            var newDepth = nextDepth(depth)
-            children = _.map(children, function(x) {return crawlEntry(x, newDepth);} );
+            const newDepth = nextDepth(depth)
+            children = _.map(children, x => crawlEntry(x, newDepth))
         }
-        if (isDFS(method)) {
-            entrypoints = entrypoints.concat(children);
-        } else {
-            entrypoints = children.concat(entrypoints);
-        }
+        entrypoints = isDFS(method) ?
+          entrypoints.concat(children) :
+          children.concat(entrypoints)
     }
-    return ctx;
+    return ctx
 }
 
 function nodeChildren(filter, entrypoint) {
-    var refs = entrypoint.conformsTo().getAllReferences();
-    return _.flatten(_.map(refs, function(v, ref) {
-        if (filter(entrypoint, ref)) {
-            return entrypoint[ref];
-        } else {
-            return [];
-        }
-    }));
+    const refs = entrypoint.conformsTo().getAllReferences()
+    return _(refs).map((v, ref) => filter(entrypoint, ref) ? entrypoint[ref] : [])
+                  .flatten()
+                  .value()
 }
 
-function crawlEntry(e, d) {
-    return {elem: e, depth: d};
+function crawlEntry(elem, depth) {
+    return {elem, depth}
 }
 
 /**
  * Get all the modelingelements from a model that belongs to a class (according to their inheritance chain)
- * @param {Class} cls - The class we are looking for;
+ * @param {Class} cls - The class we are looking for
  * @param {Model} model - The inspected model.
  * @param {Boolean} strict - If strict is false, seek for instances of the clas or of any of its subclass. Otherwise, seek only exact instances of the class (default: false).
  */
 function allInstancesFromModel (cls, model, strict) {
-    var me = _.get(model, ['referenceModel', 'modellingElements']);
+    const me = _.get(model, ['referenceModel', 'modellingElements'])
     if (_.isEmpty(me)) {
-        var os = _.flatten(_.values(model.modellingElements));
+        const os = _(model.modellingElements).values().flatten().value()
         if (!strict)  {
-            return _.filter(os, function (x) {
-                return _.includes(x.conformsTo().getInheritanceChain(), cls)
-            });
+            return _.filter(os, x => _.includes(x.conformsTo().getInheritanceChain(), cls))
         } else {
-                return x.conformsTo().__name === cls.__name;
+            return x.conformsTo().__name === cls.__name
         }
     } else if (!strict) {
-        var clss = _.flatten(_.values(me));
-        var subOfCls = _.map(
-            _.filter(clss, function(x) {
-                return (x.getInheritanceChain !== undefined)
-                  && _.includes(x.getInheritanceChain(), cls);
-            }),
-            '__name');
-        return _.flatten(_.map(
-              subOfCls,
-              function(x) {return model.modellingElements[x] || [];})
-        );
+        const clss = _(me).values().flatten().value()
+        return _(clss).filter( x => (x.getInheritanceChain !== undefined)
+                              && _.includes(x.getInheritanceChain(), cls))
+                      .map('__name')
+                      .map(x => model.modellingElements[x] || [])
+                      .flatten()
+                      .value()
     } else {
-        return me[cls.__name] ;
+        return me[cls.__name]
     }
 }
 
 /**
  * Get all the modelingelements from a model that satisfies a predicate
- * @param {Class} cls - The class we are looking for;
+ * @param {Class} cls - The class we are looking for
  * @param {Model} model - The inspected model.
  */
 function filterModelElements (predicate, model) {
-    return _.filter(_.flatten(_.values(model.modellingElements)),
-                    function (x) { return predicate(x) }
-    );
+    return _(model.modellingElements).values()
+                                     .flatten()
+                                     .filter(x => predicate(x))
+                                     .value()
 }
 
 /**
@@ -136,66 +125,65 @@ function filterModelElements (predicate, model) {
  *  - searchMethod: The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
  */
 function follow(searchParameters, entrypoint) {
-    var path = searchParameters['path'] || [];
-    path.reverse();
-    var predicate = searchParameters['predicate'] || _.constant(true);
-    var targetOnly = searchParameters['targetOnly'];
-    if (targetOnly === undefined) { targetOnly = true; }
-    var method = searchParameters['searchMethod'] || DFS_All;
-    entrypoints = [followEntry(entrypoint, path)];
-    return _follow(predicate, method, targetOnly, entrypoints);
+    const path = searchParameters['path'] || []
+    path.reverse()
+    const predicate = searchParameters['predicate'] || _.constant(true)
+    let targetOnly = searchParameters['targetOnly']
+    if (targetOnly === undefined) { targetOnly = true }
+    const method = searchParameters['searchMethod'] || DFS_All
+    const entrypoints = [followEntry(entrypoint, path)]
+    return _follow(predicate, method, targetOnly, entrypoints)
 }
 
 function getValue(x) {
     if (!(x === undefined)) {
         if (x instanceof Function && x.length == 0) {
-            return x();
+            return x()
         } else {
-            return x;
+            return x
         }
     }
 }
 
-function followEntry(e, p) {
-    return {elem: e, path: p.slice()};
+function followEntry(elem, path) {
+    return {elem, path}
 }
 
 function _follow(predicate, method, targetOnly, entrypoints) {
-    var acc = [];
+    const acc = []
     while (!(_.isEmpty(entrypoints))) {
-        var current = entrypoints.pop();
-        var entrypoint = current.elem;
-        var path = current.path;
+        const current = entrypoints.pop()
+        const entrypoint = current.elem
+        const path = current.path
         if ((!targetOnly || _.isEmpty(path)) && predicate(entrypoint)) {
-            acc.push(entrypoint);
-            if (stopOnFirst(method)) { return acc; }
+            acc.push(entrypoint)
+            if (stopOnFirst(method)) { return acc }
         }
         if (!(_.isEmpty(path))) {
-            var pathElement = path.pop();
-            if (typeof(pathElement) === 'string') {
-                var values = getValue(entrypoint[pathElement]);
+            const pathElement = path.pop()
+            if (_.isString(pathElement)) {
+                let values = getValue(entrypoint[pathElement])
+                const getterName = 'get' + pathElement[0].toUpperCase()
                 if (values === undefined) {
-                    values = getValue(entrypoint[pathElement[0]]);
+                    values = getValue(entrypoint[getterName])
                 }
                 if (values === undefined) {
-                    throw "Unsuppported method " + pathElement + " for object " + entrypoint;
+                    throw new Error(`Unsuppported method ${pathElement} for object ${entrypoint}`)
                 }
-                values = _.map(values, function(x) {return followEntry(x, path);});
-                if (isDFS(method)) {
-                    entrypoints = entrypoints.concat(values);
-                } else {
-                    entrypoints = values.concat(entrypoints);
-                }
+                values = _.map(values, x => followEntry(x, path))
+                entrypoints = isDFS(method) ?
+                  entrypoints.concat(values) :
+                  values.concat(entrypoints)
             } else if (pathElement instanceof Function) {
                 if (pathElement(entrypoint)) {
-                    entrypoints.push(followEntry(entrypoint, path));
+                    entrypoints.push(followEntry(entrypoint, path))
                 }
             } else {
-                throw "invalid path element " + pathElement;
+                throw new Error(`invalid path element ${pathElement}`)
             }
         }
     }
-    return acc;
+    return acc
 }
 
 /*********************
@@ -208,9 +196,7 @@ function _follow(predicate, method, targetOnly, entrypoints) {
  * @param {Class} cls - The expected Class.
  */
 function hasClass(cls) {
-  return function(x) {
-      return _.includes(x.conformsTo().getInheritanceChain(), cls)
-  };
+  return (x => _.includes(x.conformsTo().getInheritanceChain(), cls))
 }
 
 
@@ -225,10 +211,10 @@ function hasClass(cls) {
  * for a given clas, follows only the references provided in the corresponding map entry.
  */
 function referenceMap(x) {
-    return function(e, ref) {
-        var hierarchy = e.conformsTo().getInheritanceChain();
-        return _.some(hierarchy, function(c) { return _.includes(x[c.__name], ref); });
-    };
+    return ((e, ref) => {
+        const hierarchy = e.conformsTo().getInheritanceChain()
+        return _.some(hierarchy, c => _.includes(x[c.__name], ref))
+    })
 }
 
 /******************
@@ -238,40 +224,40 @@ function referenceMap(x) {
 /**
  * - DFS_All: Deep First Search, get all the elements that match the predicate.
  */
-function DFS_All() {}
+const DFS_All = Symbol('DFS_All')
 
 /**
  * BFS_All: Breadth First Search, get all the elements that match the predicate.
  */
-function BFS_All() {}
+const BFS_All = Symbol('BFS_All')
 
 /**
  * DFS_First: Deep First Search, get the first element that matches the predicate.
  */
-function DFS_First() {}
+const DFS_First = Symbol('DFS_First')
 
 /**
  * BFS_First: Breadth First Search, get the first element that matches the predicate.
  */
-function BFS_First() {}
+const BFS_First = Symbol('BFS_First')
 
 function isDFS(m) {
-    return _.includes([DFS_All, DFS_First], m);
+    return _.includes([DFS_All, DFS_First], m)
 }
 
 function stopOnFirst(m) {
-    return _.includes([DFS_First, BFS_First], m);
+    return _.includes([DFS_First, BFS_First], m)
 }
 
 module.exports = {
-    crawl: crawl,
-    follow: follow,
-    allInstancesFromModel: allInstancesFromModel,
-    filterModelElements: filterModelElements,
-    DFS_All: DFS_All,
-    DFS_First: DFS_First,
-    BFS_All: BFS_All,
-    BFS_First: BFS_First,
-    hasClass: hasClass,
-    referenceMap: referenceMap
+    crawl,
+    follow,
+    allInstancesFromModel,
+    filterModelElements,
+    DFS_All,
+    DFS_First,
+    BFS_All,
+    BFS_First,
+    hasClass,
+    referenceMap
 }
