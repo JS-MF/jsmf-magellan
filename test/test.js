@@ -238,7 +238,14 @@ describe('allInstancesFromModel', function () {
             res.should.containEql(s3);
             done();
         });
+        it ('using strict mode (search by class name)', function (done) {
+            var res = mag.allInstancesFromModel(StartState, unreferencedSample,true);
+            res.should.eql([s0]);
+            done();
+        });
     });
+  
+
 });
 
 describe('filterModelElements', function () {

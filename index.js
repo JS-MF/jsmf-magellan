@@ -89,7 +89,7 @@ function allInstancesFromModel (cls, model, strict) {
         if (!strict)  {
             return _.filter(os, x => _.includes(x.conformsTo().getInheritanceChain(), cls))
         } else {
-            return x.conformsTo().__name === cls.__name
+            return _.filter(os, x=> x.conformsTo().__name === cls.__name)
         }
     } else if (!strict) {
         const clss = _(me).values().flatten().value()
