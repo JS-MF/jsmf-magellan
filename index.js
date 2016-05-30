@@ -87,7 +87,10 @@ function allInstancesFromModel (cls, model, strict) {
     if (_.isEmpty(me)) {
         const os = _(model.modellingElements).values().flatten().value()
         if (!strict)  {
-            return _.filter(os, x => _.includes(x.conformsTo().getInheritanceChain(), cls))
+            return _.filter(os,
+                x => _(x.conformsTo().getInheritanceChain())
+                      .map('__name')
+                      .includes(cls.__name))
         } else {
             return _.filter(os, x=> x.conformsTo().__name === cls.__name)
         }
