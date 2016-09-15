@@ -28,31 +28,30 @@ const _ = require ('lodash')
  * Crawl crawls la whole JSMF model from a given entry point
  *
  * @param {object} searchParameters  - The definition of how the model is crawled, the following object properties are inspected:
- *   - predicate: A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
- *   - depth: the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1.
- *   - followIf: A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
- *   - stopOnfirst: Set if we continue to crawl the model when the expected predicate is found (default: true).
- *   - includeRoot: include the entrypoint in the result (default: True).
- *
+ * @param {Function} searchParameters.predicate - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ * @param {Number} searchParameters.depth - the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1
+ * @param {Function} searchParameters.followIf - A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
+ * @param {boolean} searchParameters.stopOnfirst - Set if we continue to crawl the model when the expected predicate is found (default: true).
+ * @param {boolean} searchParameters.includeRoot - include the entrypoint in the result (default: True).
  * @param {object} entrypoint  - The entrypoint object to crawl the model.
- *
- * Note the difference between stopOnFirst
+ * @returns {List} The elements that fullfill the searchParameters
  *
  * See unit tests for examples.
  */
+
 function crawl(searchParameters, entrypoint) {
-    const predicate = searchParameters['predicate'] || _.constant(true)
-    let depth = searchParameters['depth']
-    if (depth === undefined) { depth = -1 }
-    const propertyFilter = searchParameters['followIf'] || _.constant(true)
-    let includeRoot = searchParameters['includeRoot']
-    if (includeRoot === undefined) { includeRoot = true }
-    let stopOnFirst = searchParameters['stopOnFirst']
-    if (stopOnFirst === undefined) { stopOnFirst = false }
-    const startingNodes = includeRoot ? [crawlEntry(entrypoint, depth)]
-                                    : _.map(nodeChildren(propertyFilter, entrypoint),
-                                            x => crawlEntry(x, nextDepth(depth)))
-    return _crawl(predicate, propertyFilter, stopOnFirst, startingNodes).result
+  const predicate = searchParameters['predicate'] || _.constant(true)
+  let depth = searchParameters['depth']
+  if (depth === undefined) { depth = -1 }
+  const propertyFilter = searchParameters['followIf'] || _.constant(true)
+  let includeRoot = searchParameters['includeRoot']
+  if (includeRoot === undefined) { includeRoot = true }
+  let stopOnFirst = searchParameters['stopOnFirst']
+  if (stopOnFirst === undefined) { stopOnFirst = false }
+  const startingNodes = includeRoot
+    ? [crawlEntry(entrypoint, depth)]
+    : _.map(nodeChildren(propertyFilter, entrypoint), x => crawlEntry(x, nextDepth(depth)))
+  return _crawl(predicate, propertyFilter, stopOnFirst, startingNodes).result
 }
 
 function nextDepth(depth) {
@@ -60,36 +59,36 @@ function nextDepth(depth) {
 }
 
 function _crawl(predicate, propertyFilter, stopOnFirst, entrypoints) {
-    const ctx = {visited: new Set(), result: []}
-    while (!(_.isEmpty(entrypoints))) {
-        const current = entrypoints.pop()
-        const entrypoint = current.elem
-        const depth = current.depth
-        let children = []
-        let found = false
-        if (entrypoint !== undefined && !ctx.visited.has(entrypoint)) {
-            ctx.visited.add(entrypoint)
-            found = predicate(entrypoint)
-            if (found) {
-                ctx.result.push(entrypoint)
-                if (stopOnFirst) { return ctx }
-            }
-            if (depth !== 0) {
-                children = nodeChildren(propertyFilter, entrypoint)
-            }
-            const newDepth = nextDepth(depth)
-            children = _.map(children, x => crawlEntry(x, newDepth))
-        }
-        entrypoints = entrypoints.concat(children)
+  const ctx = {visited: new Set(), result: []}
+  while (!(_.isEmpty(entrypoints))) {
+    const current = entrypoints.pop()
+    const entrypoint = current.elem
+    const depth = current.depth
+    let children = []
+    let found = false
+    if (entrypoint !== undefined && !ctx.visited.has(entrypoint)) {
+      ctx.visited.add(entrypoint)
+      found = predicate(entrypoint)
+      if (found) {
+        ctx.result.push(entrypoint)
+        if (stopOnFirst) { return ctx }
+      }
+      if (depth !== 0) {
+        children = nodeChildren(propertyFilter, entrypoint)
+      }
+      const newDepth = nextDepth(depth)
+      children = _.map(children, x => crawlEntry(x, newDepth))
     }
-    return ctx
+    entrypoints = entrypoints.concat(children)
+  }
+  return ctx
 }
 
 function nodeChildren(filter, entrypoint) {
-    const refs = entrypoint.conformsTo().getAllReferences()
-    return _(refs).map((v, ref) => filter(entrypoint, ref) ? entrypoint[ref] : [])
-                  .flatten()
-                  .value()
+  const refs = entrypoint.conformsTo().getAllReferences()
+  return _(refs).map((v, ref) => filter(entrypoint, ref) ? entrypoint[ref] : [])
+                .flatten()
+                .value()
 }
 
 function crawlEntry(elem, depth) {
@@ -129,8 +128,9 @@ function allInstancesFromModel (cls, model, strict) {
 
 /**
  * Get all the modelingelements from a model that satisfies a predicate
- * @param {Class} cls - The class we are looking for
+ * @param {Function} predicate - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result.
  * @param {Model} model - The inspected model.
+ * @returns {List} The elements of the model that verifies the predicate function
  */
 function filterModelElements (predicate, model) {
     return _(model.modellingElements).values()
@@ -142,10 +142,11 @@ function filterModelElements (predicate, model) {
 /**
  * Get the elements down a given path from a given entrypoint of a model.
  * @param {object} searchParameters - The parameters of the search. The following properties are inspected:
- *  - path: The path to follow. A path is a list of reference names that must be followed. The last element can be an attribute name. If no value is given, the default value is the empty list.
- *  - predicate: Must be fullfilled by an object to be included in the answer. If the property is undefined, all the objects are included.
- *  - targetOnly: if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
- *  - searchMethod: The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
+ * @param {List} path - The path to follow. A path is a list of reference names that must be followed. The last element can be an attribute name. If no value is given, the default value is the empty list
+ * @param {Function} searchParameters.predicate - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ * @param {boolean} searchParameters.targetOnly - if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
+ * @param {Symbol} - searchParameters.searchMethod - The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
+ * @returns {List} The elements that fullfill the searchParameters
  */
 function follow(searchParameters, entrypoint) {
     const path = searchParameters['path'] || []
