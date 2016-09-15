@@ -31,11 +31,12 @@ const _ = require ('lodash')
  *   - predicate: A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
  *   - depth: the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1.
  *   - followIf: A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
- *   - searchMethod: The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
- *   - continueWhenFound: Set if we continue to crawl the model from this node when the expected predicate is found (default: true).
- *   - includeRoot: inc, searchMethod.DFS_OnePerBranch]lude the entrypoint in the result (default: True).
+ *   - stopOnfirst: Set if we continue to crawl the model when the expected predicate is found (default: true).
+ *   - includeRoot: include the entrypoint in the result (default: True).
  *
  * @param {object} entrypoint  - The entrypoint object to crawl the model.
+ *
+ * Note the difference between stopOnFirst
  *
  * See unit tests for examples.
  */
@@ -44,22 +45,21 @@ function crawl(searchParameters, entrypoint) {
     let depth = searchParameters['depth']
     if (depth === undefined) { depth = -1 }
     const propertyFilter = searchParameters['followIf'] || _.constant(true)
-    const method = searchParameters['searchMethod'] || DFS_All
     let includeRoot = searchParameters['includeRoot']
     if (includeRoot === undefined) { includeRoot = true }
-    let continueWhenFound = searchParameters['continueWhenFound']
-    if (continueWhenFound === undefined) { continueWhenFound = true }
+    let stopOnFirst = searchParameters['stopOnFirst']
+    if (stopOnFirst === undefined) { stopOnFirst = false }
     const startingNodes = includeRoot ? [crawlEntry(entrypoint, depth)]
                                     : _.map(nodeChildren(propertyFilter, entrypoint),
                                             x => crawlEntry(x, nextDepth(depth)))
-    return _crawl(predicate, propertyFilter, continueWhenFound, method, startingNodes).result
+    return _crawl(predicate, propertyFilter, stopOnFirst, startingNodes).result
 }
 
 function nextDepth(depth) {
   return depth > 0 ? depth - 1 : depth
 }
 
-function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoints) {
+function _crawl(predicate, propertyFilter, stopOnFirst, entrypoints) {
     const ctx = {visited: new Set(), result: []}
     while (!(_.isEmpty(entrypoints))) {
         const current = entrypoints.pop()
@@ -72,17 +72,15 @@ function _crawl(predicate, propertyFilter, continueWhenFound, method, entrypoint
             found = predicate(entrypoint)
             if (found) {
                 ctx.result.push(entrypoint)
-                if (stopOnFirst(method)) { return ctx }
+                if (stopOnFirst) { return ctx }
             }
-            if (depth !== 0 && (!found || continueWhenFound)) {
+            if (depth !== 0) {
                 children = nodeChildren(propertyFilter, entrypoint)
             }
             const newDepth = nextDepth(depth)
             children = _.map(children, x => crawlEntry(x, newDepth))
         }
-        entrypoints = isDFS(method) ?
-          entrypoints.concat(children) :
-          children.concat(entrypoints)
+        entrypoints = entrypoints.concat(children)
     }
     return ctx
 }

@@ -148,9 +148,9 @@ describe('crawl', function () {
     res.should.eql([s1])
     done()
   })
-  it ('works with "continueWhenFound" sets to false', function(done) {
+  it ('works with "stopOnFirst" sets to true', function(done) {
     // Find one State from s0, then stops.
-    const res = mag.crawl({predicate: mag.hasClass(State), includeRoot: false, continueWhenFound: false}, s0)
+    const res = mag.crawl({predicate: mag.hasClass(State), includeRoot: false, stopOnFirst: true}, s0)
     res.should.eql([s1])
     done()
   })
@@ -183,20 +183,6 @@ describe('crawl', function () {
     res.should.containEql(t20)
     res.should.containEql(t21)
     done()
-  })
-  it ('resolves depth correctly when a node can be accessed via 2 paths', function (done) {
-    const A = new Class('A')
-    A.setReference('next', A)
-    const a0 = new A()
-        , a1 = new A()
-        , a2 = new A()
-        , a3 = new A()
-    a0.next = [a1,a2]
-    a1.next = a2
-    a2.next = a3
-    mag.crawl({depth: 2}, a0).should.containEql(a3)
-    a0.next = [a2,a1]
-    mag.crawl({depth: 2}, a0).should.containEql(a3)
   })
 })
 
