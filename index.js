@@ -28,14 +28,13 @@ const _ = require ('lodash')
  * Crawl crawls la whole JSMF model from a given entry point
  *
  * @param {object} searchParameters  - The definition of how the model is crawled, the following object properties are inspected:
- * @param {Function} searchParameters.predicate - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
- * @param {Number} searchParameters.depth - the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1. If undefined, the default value is -1
- * @param {Function} searchParameters.followIf - A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
- * @param {boolean} searchParameters.stopOnfirst - Set if we continue to crawl the model when the expected predicate is found (default: true).
- * @param {boolean} searchParameters.includeRoot - include the entrypoint in the result (default: True).
- * @param {object} entrypoint  - The entrypoint object to crawl the model.
+ * @param {Function} [searchParameters.predicate=_.constant(true)] - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ * @param {Number} [searchParameters.depth=-1] - the number of references to be followed befor we stop crawling, if we don't want to limit crawling, use -1.
+ * @param {Function} [searchParameters.followIf=_.constant(true)] - A function that take an object and a reference as parameters, if the function is evaluate to true, we follow this reference, otherwise, we stop crawling this branch. If undefined, all the references are followed.
+ * @param {boolean} [searchParameters.stopOnfirst=false] - Set if we continue to crawl the model when the expected predicate is found.
+ * @param {boolean} [searchParameters.includeRoot=true] - include the entrypoint in the result.
+ * @param {object} entrypoint - The entrypoint object to crawl the model.
  * @returns {List} The elements that fullfill the searchParameters
- *
  * See unit tests for examples.
  */
 
@@ -99,7 +98,7 @@ function crawlEntry(elem, depth) {
  * Get all the modelingelements from a model that belongs to a class (according to their inheritance chain)
  * @param {Class} cls - The class we are looking for
  * @param {Model} model - The inspected model.
- * @param {Boolean} strict - If strict is false, seek for instances of the clas or of any of its subclass. Otherwise, seek only exact instances of the class (default: false).
+ * @param {boolean} [strict=false] - If strict is false, seek for instances of the clas or of any of its subclass. Otherwise, seek only exact instances of the class.
  */
 function allInstancesFromModel (cls, model, strict) {
     const me = _.get(model, ['referenceModel', 'modellingElements'])
@@ -143,9 +142,9 @@ function filterModelElements (predicate, model) {
  * Get the elements down a given path from a given entrypoint of a model.
  * @param {object} searchParameters - The parameters of the search. The following properties are inspected:
  * @param {List} path - The path to follow. A path is a list of reference names that must be followed. The last element can be an attribute name. If no value is given, the default value is the empty list
- * @param {Function} searchParameters.predicate - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
- * @param {boolean} searchParameters.targetOnly - if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
- * @param {Symbol} - searchParameters.searchMethod - The searchMethod used to crawl the model, see {@searchMethod} (default: DFS_All).
+ * @param {Function} [searchParameters.predicate=_.constant(true)] - A predicate (a function that takes an object as parameter) that must be fullfilled by an object to be part of the result. If undefined, all the objects are accepted
+ * @param {boolean} [searchParameters.targetOnly=true] - if true, we return only the objects at the end of the path otherwise, we also take objects we pass through during the search. Default value is 'true'.
+ * @param {Symbol} - [searchParameters.searchMethod=DFS_All] - The searchMethod used to crawl the model (either {DFS_All}, {DFS_First}, {BFS_All}, or {BFS_First}).
  * @returns {List} The elements that fullfill the searchParameters
  */
 function follow(searchParameters, entrypoint) {
@@ -159,55 +158,41 @@ function follow(searchParameters, entrypoint) {
     return _follow(predicate, method, targetOnly, entrypoints)
 }
 
-function getValue(x) {
-    if (!(x === undefined)) {
-        if (x instanceof Function && x.length == 0) {
-            return x()
-        } else {
-            return x
-        }
-    }
-}
-
 function followEntry(elem, path) {
     return {elem, path}
 }
 
 function _follow(predicate, method, targetOnly, entrypoints) {
-    const acc = []
-    while (!(_.isEmpty(entrypoints))) {
-        const current = entrypoints.pop()
-        const entrypoint = current.elem
-        const path = current.path
-        if ((!targetOnly || _.isEmpty(path)) && predicate(entrypoint)) {
-            acc.push(entrypoint)
-            if (stopOnFirst(method)) { return acc }
-        }
-        if (!(_.isEmpty(path))) {
-            const pathElement = path.pop()
-            if (_.isString(pathElement)) {
-                let values = getValue(entrypoint[pathElement])
-                const getterName = 'get' + pathElement[0].toUpperCase()
-                if (values === undefined) {
-                    values = getValue(entrypoint[getterName])
-                }
-                if (values === undefined) {
-                    throw new Error(`Unsuppported method ${pathElement} for object ${entrypoint}`)
-                }
-                values = _.map(values, x => followEntry(x, path))
-                entrypoints = isDFS(method) ?
-                  entrypoints.concat(values) :
-                  values.concat(entrypoints)
-            } else if (pathElement instanceof Function) {
-                if (pathElement(entrypoint)) {
-                    entrypoints.push(followEntry(entrypoint, path))
-                }
-            } else {
-                throw new Error(`invalid path element ${pathElement}`)
-            }
-        }
+  const acc = []
+  while (!(_.isEmpty(entrypoints))) {
+    const current = entrypoints.pop()
+    const entrypoint = current.elem
+    const path = current.path
+    if ((!targetOnly || _.isEmpty(path)) && predicate(entrypoint)) {
+      acc.push(entrypoint)
+      if (stopOnFirst(method)) { return acc }
     }
-    return acc
+    if (!(_.isEmpty(path))) {
+      const pathElement = path.pop()
+      if (_.isString(pathElement)) {
+        let values = entrypoint[pathElement]
+        if (values === undefined) {
+          throw new Error(`Unsuppported method ${pathElement} for object ${entrypoint}`)
+        }
+        values = _.map(values, x => followEntry(x, path))
+        entrypoints = isDFS(method)
+          ? entrypoints.concat(values)
+          : values.concat(entrypoints)
+      } else if (pathElement instanceof Function) {
+          if (pathElement(entrypoint)) {
+            entrypoints.push(followEntry(entrypoint, path))
+          }
+      } else {
+        throw new Error(`invalid path element ${pathElement}`)
+      }
+    }
+  }
+  return acc
 }
 
 /*********************
