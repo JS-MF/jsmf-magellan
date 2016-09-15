@@ -1,6 +1,6 @@
 {
   "name": "jsmf-magellan",
-  "version": "0.7.0",
+  "version": "0.8.0-0",
   "description": "Navigation module for jsmf",
   "main": "index.js",
   "directories": {
