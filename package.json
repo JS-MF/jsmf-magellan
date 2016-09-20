@@ -27,10 +27,10 @@
   "license": "MIT",
   "dependencies": {
     "lodash": "^4.1.0",
-    "jsmf-core": "^0.10.0"
+    "jsmf-core": "^0.11.0"
   },
   "devDependencies": {
-    "mocha": "^2.5.3",
-    "should": "^7.1.1"
+    "mocha": "^3.0.2",
+    "should": "^11.1.0"
   }
 }
